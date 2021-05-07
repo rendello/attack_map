@@ -4,6 +4,8 @@ Monitor the ssh authlog file on OpenBSD.
 Determine the likely origin country of new failed logins, then:
 - Store this information in an SQLite database, and
 - Send an IPC signal to the web framework that the data has changed.
+
+May not catch the last few lines before a log file rollover.
 """
 
 import time
@@ -22,14 +24,13 @@ LOG_TURN_OVER_PATTERN = re.compile(
 
 # 1=Month name, 2=Day of month, 3=HH:MM:SS 4=user, 5=ip, 6=port.
 LOG_FAILED_PASSWORD_PATTERN = re.compile(
-    r"^(\w{3,9}) {,2}(\d{,2}) (\d{2}:\d{2}:\d{2}) \w+ \w+\[\d+\]: Failed password for (\w+) from (.*) port (\d+) ssh2$",
+    r"(\w{3}) {1,2}(\d{,2}) (\d{2}:\d{2}:\d{2}) \w+ \w+\[\d+\]: Failed password for (?:invalid user )?(\w+) from (.*) port (\d+) ssh2",
     flags=re.MULTILINE
 )
 
-
 # =============================================================================
 
-def convert_log_entry_date(turn_over_timestamp, month_name, day_of_month, time):
+def convert_log_entry_timestamp(turn_over_timestamp, month_name, day_of_month, time):
     """ Change date to the same YYYY-MM-DDTHH:MM:SS.SSS (ISO-8601) format
     that's used for the turn over date and that's accepted by SQLite.
     
@@ -51,21 +52,38 @@ def convert_log_entry_date(turn_over_timestamp, month_name, day_of_month, time):
     return f"{year}-{month:02}-{day:02}T{time}.000"
 
 
+def process_new_entries(f, old_turn_over_timestamp, old_cursor_position):
+    s = f.readline()
+    turn_over_timestamp = re.match(LOG_TURN_OVER_PATTERN, s).group(1)
+
+    if turn_over_timestamp == old_turn_over_timestamp:
+        cursor_position = old_cursor_position
+    else:
+        cursor_position = 0
+
+    f.seek(cursor_position)
+    new_entries = []
+    for entry_match in re.findall(LOG_FAILED_PASSWORD_PATTERN, f.read()):
+        if entry_match is not None:
+            month_name, day_of_month, time, username, ip, port = entry_match
+            ISO_8601_date = convert_log_entry_timestamp(turn_over_timestamp, month_name, day_of_month, time)
+            new_entries.append((ISO_8601_date, username, ip, port))
+    cursor_position = f.tell()
+    return new_entries, cursor_position, turn_over_timestamp
+
+
 # =============================================================================
 
-with open(AUTHLOG_PATH) as f:
-    s = f.readline()
-    turn_over_match = re.match(LOG_TURN_OVER_PATTERN, s)
+cursor_position = 0
+turn_over_timestamp = ""
+while True:
+    with open(AUTHLOG_PATH) as f:
+        new_entries, cursor_position, turn_over_timestamp = process_new_entries(f, turn_over_timestamp, cursor_position)
+    for e in new_entries:
+        print(e)
+    print(cursor_position)
+    print("===============")
+    time.sleep(10)
+    
 
-    turn_over_timestamp = turn_over_match.group(1)
 
-    for line in f:
-        entry_match = re.match(LOG_FAILED_PASSWORD_PATTERN, line)
-        if entry_match is not None:
-            month_name, day_of_month, time, username, ip, port = entry_match.group(1, 2, 3, 4, 5, 6)
-            ISO_8601_date = convert_log_entry_date(turn_over_timestamp, month_name, day_of_month, time)
-
-
-
-def process_new_entries():
-    pass
