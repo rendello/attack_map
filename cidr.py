@@ -20,27 +20,47 @@ def file_paths_in_dir(dir_path_name):
     return file_paths
 
 
-def pull_ranges_from_dir(dir_path):
+def pull_ranges_from_dir(base_dir_path, ip_version):
     """ Grab IP ranges per country from a data set, return a list of each
     block's staring address, in ascending order.
     
-    Expects the data set to be a directory of all countries in the format
-    `<2 letter country code>.cidr`. The files should list the ip blocks in CIDR
+    Expects the base folder to have the subdirectories "ipv4" and "ipv6", each
+    of which will contain files for all countries in the format "XX.cidr",
+    where XX is the country code. The files should list the ip blocks in CIDR
     format, one per line. """
 
+    version_dir_path = f"{base_dir_path}/ipv{ip_version}"
+    if ip_version == 4:
+        IPNetwork = ipaddress.IPv4Network
+        IPAddress = ipaddress.IPv4Address
+    elif ip_version == 6:
+        IPNetwork = ipaddress.IPv6Network
+        IPAddress = ipaddress.IPv6Address
+
     ranges = []
-    for path in file_paths_in_dir(dir_path):
+    for path in file_paths_in_dir(version_dir_path):
         country_code = path.name.replace(".cidr", "")
         with open(path, "r") as f:
             for line in f.readlines():
-                ip_address = ipaddress.IPv4Network(line.strip()).network_address
+                ip_address = IPNetwork(line.strip()).network_address
                 ranges.append((ip_address, country_code))
 
-    return sorted(ranges, key=lambda tup: ipaddress.IPv4Address(tup[0]))
+    return sorted(ranges, key=lambda tup: IPAddress(tup[0]))
 
 
-ranges = pull_ranges_from_dir("./ipv4")
+ipv4_ranges = pull_ranges_from_dir("/home/gtgt9/Desktop/country-ip-blocks", 4)
+ipv6_ranges = pull_ranges_from_dir("/home/gtgt9/Desktop/country-ip-blocks", 6)
+
+#for a in ipv4_ranges:
+#    print(a)
+#
+#for a in ipv6_ranges:
+#    print(a)
+
 while True:
     ip = input("New IP: ")
-    country = get_country(ranges, (ipaddress.IPv4Address(ip), ))
+    if "." in ip:
+        country = get_country(ipv4_ranges, (ipaddress.IPv4Address(ip), ))
+    else:
+        country = get_country(ipv6_ranges, (ipaddress.IPv6Address(ip), ))
     print(country)
