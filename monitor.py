@@ -102,5 +102,3 @@ while True:
     print(cursor_position)
     print("===============")
     time.sleep(10)
-    
-
