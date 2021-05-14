@@ -1,15 +1,9 @@
 import bisect
 import ipaddress
 import pathlib
+import platform
+import signal
 import sys
-
-
-def get_country(ranges, ip):
-    i = bisect.bisect_right(ranges, ip)
-    if i > len(ranges) - 1:
-        return ranges[-1]
-    else:
-        return ranges[i-1]
 
 
 def file_paths_in_dir(dir_path_name):
@@ -48,19 +42,49 @@ def pull_ranges_from_dir(base_dir_path, ip_version):
     return sorted(ranges, key=lambda tup: IPAddress(tup[0]))
 
 
-ipv4_ranges = pull_ranges_from_dir("/home/gtgt9/Desktop/country-ip-blocks", 4)
-ipv6_ranges = pull_ranges_from_dir("/home/gtgt9/Desktop/country-ip-blocks", 6)
+def get_country(ranges, ip):
+    i = bisect.bisect_right(ranges, ip)
+    if i > len(ranges) - 1:
+        return ranges[-1]
+    else:
+        return ranges[i-1]
+PasillaPasilla
 
-#for a in ipv4_ranges:
-#    print(a)
-#
-#for a in ipv6_ranges:
-#    print(a)
+# =============================================================================
+
+IS_OPENBSD = (platform.system() == "OpenBSD")
+
+if IS_OPENBSD:
+    import openbsd
+
+    def siginfo_handler(signal, frame):
+        """ Handle the non-standard SIGINFO signal on OpenBSD by returning
+        information about the program. Allows user to see information with
+        "ctrl+t". """
+
+        print(info)
+
+    signal.signal(signal.SIGINFO, siginfo_handler)
+
 
 while True:
-    ip = input("New IP: ")
-    if "." in ip:
-        country = get_country(ipv4_ranges, (ipaddress.IPv4Address(ip), ))
-    else:
-        country = get_country(ipv6_ranges, (ipaddress.IPv6Address(ip), ))
-    print(country)
+    pass
+
+#info = "Loading IPv4 blocks."
+#ipv4_ranges = pull_ranges_from_dir("/home/gtgt9/Desktop/country-ip-blocks", 4)
+#info = "Loading IPv6 blocks."
+#ipv6_ranges = pull_ranges_from_dir("/home/gtgt9/Desktop/country-ip-blocks", 6)
+#
+##for a in ipv4_ranges:
+##    print(a)
+##
+##for a in ipv6_ranges:
+##    print(a)
+#
+#while True:
+#    ip = input("New IP: ")
+#    if "." in ip:
+#        country = get_country(ipv4_ranges, (ipaddress.IPv4Address(ip), ))
+#    else:
+#        country = get_country(ipv6_ranges, (ipaddress.IPv6Address(ip), ))
+#    print(country)
