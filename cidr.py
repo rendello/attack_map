@@ -19,8 +19,8 @@ def file_paths_in_dir(dir_path_name):
     return file_paths
 
 
-def pull_ranges_from_dir(base_dir_path, ip_version):
-    """ Grab IP ranges per country from a data set, return a list of every
+def pull_blocks_from_dir(base_dir_path, ip_version):
+    """ Grab IP blocks per country from a data set, return a list of every
     block's starting address in ascending order.
     
     Expects the base folder to have the subdirectories "ipv4" and "ipv6", each
@@ -38,24 +38,25 @@ def pull_ranges_from_dir(base_dir_path, ip_version):
         IPNetwork = ipaddress.IPv6Network
         IPAddress = ipaddress.IPv6Address
 
-    ranges = []
+    blocks = []
     for path in file_paths_in_dir(version_dir_path):
         country_code = path.name.replace(".cidr", "")
-        info = f"Loading {country_code} IPv{ip_version} blocks."
+        info = f'Loading IPv{ip_version} blocks for country: "{country_code.upper()}".'
         with open(path, "r") as f:
             for line in f.readlines():
                 ip_address = IPNetwork(line.strip()).network_address
-                ranges.append((ip_address, country_code))
+                blocks.append((ip_address, country_code))
 
-    return sorted(ranges, key=lambda tup: IPAddress(tup[0]))
+    info = f'Sorting IPv{ip_version} blocks.'
+    return sorted(blocks, key=lambda tup: IPAddress(tup[0]))
 
 
-def get_country(ranges, ip):
-    i = bisect.bisect_right(ranges, ip)
-    if i > len(ranges) - 1:
-        return ranges[-1]
+def get_country(blocks, ip):
+    i = bisect.bisect_right(blocks, ip)
+    if i > len(blocks) - 1:
+        return blocks[-1]
     else:
-        return ranges[i-1]
+        return blocks[i-1]
 
 
 # =============================================================================
@@ -66,10 +67,7 @@ if IS_OPENBSD:
     import openbsd
 
     def siginfo_handler(signal_number, frame):
-        """ Handle the non-standard SIGINFO signal on OpenBSD by returning
-        information about the program. Allows user to see information with
-        "ctrl+t". """
-
+        """ See `info` definition """
         global info
         try:
             print(info)
@@ -83,15 +81,18 @@ config_file = pathlib.Path(appdirs.user_config_dir("SSH_Map")).joinpath("config.
 with open(config_file, "r") as f:
     config = toml.load(f)
 
+# Information about the process' status to be returned on OpenBSD SIGINFO
+# through `siginfo_handler()`. Should be updated when any long-running action
+# is initiated.
+info = ""
 
-info = ""  # Process information for OpenBSD SIGINFO.
-ipv4_ranges = pull_ranges_from_dir(config["country_ip_blocks"], 4)
-ipv6_ranges = pull_ranges_from_dir(config["country_ip_blocks"], 6)
+ipv4_blocks = pull_blocks_from_dir(config["country_ip_blocks"], 4)
+ipv6_blocks = pull_blocks_from_dir(config["country_ip_blocks"], 6)
 
 while True:
     ip = input("New IP: ")
     if "." in ip:
-        country = get_country(ipv4_ranges, (ipaddress.IPv4Address(ip), ))
+        country = get_country(ipv4_blocks, (ipaddress.IPv4Address(ip), ))
     else:
-        country = get_country(ipv6_ranges, (ipaddress.IPv6Address(ip), ))
+        country = get_country(ipv6_blocks, (ipaddress.IPv6Address(ip), ))
     print(country)

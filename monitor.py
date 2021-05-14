@@ -1,9 +1,16 @@
-""" Monitor the ssh authlog file on OpenBSD.
-Determine the likely origin country of new failed logins, then:
-- Store this information in an SQLite database, and
-- Send an IPC signal to the web framework that the data has changed.
+""" Monitor the authlog on OpenBSD and store failed password entries in
+a database.
 
-May not catch the last few lines before a log file rollover.
+More precisely:
+    (Setup)
+    - Create a map of IP blocks to country codes.
+    - Sandbox process with `pledge` and `unveil`.
+    (Loop)
+    - Read the new lines of the authlog,
+    - Grab the failed password SSH login information,
+    - Map the attacking IPs to their respective country codes,
+    - Store the relevent attack data in the SQLite database.
+    - Wait a bit; goto `Loop`.
 """
 
 import re
