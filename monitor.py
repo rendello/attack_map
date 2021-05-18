@@ -13,7 +13,24 @@ More precisely:
     - Wait a bit; goto `Loop`.
 """
 
+# todo: Store IP address blocks as integers instead of objects, maybe.
+# todo: load gzipped entries (optionally)
+#       read one page or line at a time.
+
+# If log turnover date > last sqlite entry date:
+#    Push log path onto the read stack,
+#    Unzip latest zipped log into /tmp, check log date
+#    If log turnover date > last sqlite entry date:
+#        ... (recurse)
+#    Else
+#        Process the file
+#        Pull next entry from stack, process the file, etc.
+#
+# No need to check date of individual entries, as that will
+# be handled later, when they're to be loaded into the db.
+
 import bisect
+import datetime
 import ipaddress
 import pathlib
 import platform
@@ -22,6 +39,7 @@ import signal
 import sqlite3
 import sys
 import time
+from collections import namedtuple
 
 import appdirs
 import openbsd
@@ -36,9 +54,9 @@ LOG_TURN_OVER_PATTERN = re.compile(
     r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}).*logfile turned over$"
 )
 
-# 1=Month name, 2=Day of month, 3=HH:MM:SS 4=user, 5=ip.
+# 1=<Month name> DD HH:MM:SS 2=user, 3=ip.
 LOG_FAILED_PASSWORD_PATTERN = re.compile(
-    r"(\w{3}) {1,2}(\d{,2}) (\d{2}:\d{2}:\d{2}) \w+ \w+\[\d+\]: Failed password for (?:invalid user )?(\w+) from (.*) port \d+ ssh2",
+    r"(\w{3} {1,2}\d{,2} \d{2}:\d{2}:\d{2}) \w+ \w+\[\d+\]: Failed password for (?:invalid user )?(\w+) from (.*) port \d+ ssh2",
     flags=re.MULTILINE
 )
 
@@ -46,7 +64,7 @@ LOG_FAILED_PASSWORD_PATTERN = re.compile(
 # =============================================================================
 
 def siginfo_handler(signal_number, frame):
-    """ See `process_status` definition """
+    """ See `process_status` definition. """
     global process_status
     try:
         print(process_status)
@@ -114,26 +132,29 @@ def get_country_from_ip(ipv4_blocks, ipv6_blocks, ip):
 
 # Logfile monitor functions ===================================================
 
-def convert_log_entry_timestamp(turn_over_timestamp, month_name, day_of_month, time):
-    """ Change date to YYYY-MM-DDTHH:MM:SS.SSS (ISO-8601) format that's
-    accepted by SQLite (and used by default for the turn over timestamp).
+def log_entry_timestamp_to_posix_timestamp(turn_over_timestamp, timestamp) -> float:
+    """ Change log entry timestamp to POSIX timestamp.
     
-    All args are strings for consistency. """
+    Entry dates are given in this format: "May 17 18:00:38". We rely on the
+    log's turn over date (in another format, ISO 8601) to give us the year. """
 
     month_num_map = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
         "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
 
     turn_over_year = int(turn_over_timestamp[0:4])
     turn_over_month = int(turn_over_timestamp[5:7])
-    
+
     year = turn_over_year
-    month = month_num_map[month_name]
-    day = int(day_of_month)
+    month = month_num_map[timestamp[0:3]]
+    day = int(timestamp[4:6])
+    hour = int(timestamp[7:9])
+    minute = int(timestamp[10:12])
+    second = int(timestamp[13:15])
 
     if month < turn_over_month:
         year += 1
 
-    return f"{year}-{month:02}-{day:02}T{time}.000"
+    return datetime.datetime(year, month, day, hour, minute, second).timestamp()
 
 
 def process_new_entries(f, old_turn_over_timestamp, old_cursor_position):
@@ -152,9 +173,9 @@ def process_new_entries(f, old_turn_over_timestamp, old_cursor_position):
     new_entries = []
     for entry_match in re.findall(LOG_FAILED_PASSWORD_PATTERN, f.read()):
         if entry_match is not None:
-            month_name, day_of_month, time, username, ip = entry_match
-            ISO_8601_date = convert_log_entry_timestamp(turn_over_timestamp, month_name, day_of_month, time)
-            new_entries.append((ISO_8601_date, username, ip))
+            non_posix_timestamp, username, ip = entry_match
+            timestamp = log_entry_timestamp_to_posix_timestamp(turn_over_timestamp, non_posix_timestamp)
+            new_entries.append((timestamp, username, ip))
 
     cursor_position = f.tell()
 
@@ -163,16 +184,24 @@ def process_new_entries(f, old_turn_over_timestamp, old_cursor_position):
 
 # =============================================================================
 #cur.execute("create table lang (lang_name, lang_age)")
-#cur.execute("CREATE TABLE password_violations (username TEXT, ip TEXT, date TEXT, nation TEXT)")
+#cur.execute("CREATE TABLE password_violations (username TEXT, ip TEXT, timestamp INTEGER, nation TEXT)")
 
-def commit_entries_to_db(entries):
-    """ Open db, dump entries, close db. Despite their expense, the occasional
-    opening and closing of the db allows other applications to access it. """
+def commit_entries_to_db(entries, db_path):
+    """ Open SQLite db, dump entries, close db. """
 
-    con = sqlite3.connect('example.db').cursor()
+    con = sqlite3.connect(db_path)
     cur = con.cursor()
-    for e in entries:
-        cur.execute("INSERT INTO ssh VALUES (?, ?)")
+
+    cur.execute("SELECT MAX(timestamp) FROM password_violations")
+    latest_entry_timestamp = float(cur.fetchone())
+
+    for entry in entries:
+        if entry.timestamp > latest_entry_timestamp:
+            cur.execute(
+                ("INSERT INTO password_violations "
+                +"(username, ip, nation, timestamp)"
+                +"VALUES (?, ?, ?, ?)")
+            )
     con.commit()
     con.close()
 
@@ -195,8 +224,11 @@ if __name__ == "__main__":
     ipv4_blocks = pull_IP_blocks_from_dir(config["country_ip_blocks"], 4)
     ipv6_blocks = pull_IP_blocks_from_dir(config["country_ip_blocks"], 6)
 
+    # unveil sqlite db
+
     cursor_position = 0
     turn_over_timestamp = ""
+    loop_count = 0
     while True:
         with open(AUTHLOG_PATH) as f:
             new_entries, cursor_position, turn_over_timestamp = process_new_entries(f, turn_over_timestamp, cursor_position)
@@ -205,3 +237,5 @@ if __name__ == "__main__":
             print(get_country_from_ip(ipv4_blocks, ipv6_blocks, e[2]))
         print("===============")
         time.sleep(10)
+        loop_count += 1
+        process_status = f"Monitoring log file. Loop count: {loop_count}"
