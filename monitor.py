@@ -11,23 +11,12 @@ More precisely:
     - Map the attacking IPs to their respective country codes,
     - Store the relevent attack data in the SQLite database.
     - Wait a bit; goto `Loop`.
-"""
 
-# todo: Store IP address blocks as integers instead of objects, maybe.
-# todo: load gzipped entries (optionally)
-#       read one page or line at a time.
+Note: The IP blocks list/indexing use IPs stored as integers for lower
+memory overhead. IPs are not stored in to disk as integers, as IPv6's
+128-bit ints are too big for SQLite. """
 
-# If log turnover date > last sqlite entry date:
-#    Push log path onto the read stack,
-#    Unzip latest zipped log into /tmp, check log date
-#    If log turnover date > last sqlite entry date:
-#        ... (recurse)
-#    Else
-#        Process the file
-#        Pull next entry from stack, process the file, etc.
-#
-# No need to check date of individual entries, as that will
-# be handled later, when they're to be loaded into the db.
+# todo: Check out "supervisord".
 
 import bisect
 import datetime
@@ -107,7 +96,7 @@ def pull_IP_blocks_from_dir(base_dir_path, ip_version):
         process_status = f'Loading IPv{ip_version} blocks for country: "{country_code.upper()}".'
         with open(path, "r") as f:
             for line in f.readlines():
-                ip_address = IPNetwork(line.strip()).network_address
+                ip_address = int(IPNetwork(line.strip()).network_address)
                 blocks.append((ip_address, country_code))
 
     process_status = f'Sorting IPv{ip_version} blocks.'
@@ -116,12 +105,13 @@ def pull_IP_blocks_from_dir(base_dir_path, ip_version):
 
 def get_country_from_ip(ipv4_blocks, ipv6_blocks, ip):
     """ Returns two-digit country code. """
+
     if "." in ip:
         blocks = ipv4_blocks
-        ip_tuple = (ipaddress.IPv4Address(ip), )
+        ip_tuple = (int(ipaddress.IPv4Address(ip)), )
     else:
         blocks = ipv6_blocks
-        ip_tuple = (ipaddress.IPv6Address(ip), )
+        ip_tuple = (int(ipaddress.IPv6Address(ip)), )
 
     i = bisect.bisect_right(blocks, ip_tuple)
     if i > len(blocks) - 1:
@@ -183,8 +173,6 @@ def process_new_entries(f, old_turn_over_timestamp, old_cursor_position):
 
 
 # =============================================================================
-#cur.execute("create table lang (lang_name, lang_age)")
-#cur.execute("CREATE TABLE password_violations (username TEXT, ip TEXT, timestamp INTEGER, nation TEXT)")
 
 def commit_entries_to_db(entries, db_path):
     """ Open SQLite db, dump entries, close db. """
@@ -205,9 +193,8 @@ def commit_entries_to_db(entries, db_path):
     con.commit()
     con.close()
 
+
 # =============================================================================
-
-
 
 if __name__ == "__main__":
 
