@@ -31,7 +31,7 @@ import time
 from collections import namedtuple
 
 import appdirs
-import openbsd
+#import openbsd
 import toml
 
 # Constants ===================================================================
@@ -71,7 +71,7 @@ def file_paths_in_dir(dir_path_name):
     return file_paths
 
 
-def pull_IP_blocks_from_dir(base_dir_path, ip_version):
+def pull_IP_blocks_from_dir(base_dir_path):
     """ Grab IP blocks per country from a data set, return a list of every
     block's starting address in ascending order.
     
@@ -82,36 +82,24 @@ def pull_IP_blocks_from_dir(base_dir_path, ip_version):
 
     global process_status
 
-    version_dir_path = f"{base_dir_path}/ipv{ip_version}"
-    if ip_version == 4:
-        IPNetwork = ipaddress.IPv4Network
-        IPAddress = ipaddress.IPv4Address
-    elif ip_version == 6:
-        IPNetwork = ipaddress.IPv6Network
-        IPAddress = ipaddress.IPv6Address
-
     blocks = []
-    for path in file_paths_in_dir(version_dir_path):
+    for path in file_paths_in_dir(f"{base_dir_path}/ipv4"):
         country_code = path.name.replace(".cidr", "")
-        process_status = f'Loading IPv{ip_version} blocks for country: "{country_code.upper()}".'
+        process_status = f'Loading IPv4 blocks for country: "{country_code.upper()}".'
         with open(path, "r") as f:
             for line in f.readlines():
-                ip_address = int(IPNetwork(line.strip()).network_address)
+                ip_address = int(ipaddress.IPv4Network(line.strip()).network_address)
                 blocks.append((ip_address, country_code))
 
-    process_status = f'Sorting IPv{ip_version} blocks.'
-    return sorted(blocks, key=lambda tup: IPAddress(tup[0]))
+    process_status = f'Sorting IPv4 blocks.'
+    return sorted(blocks, key=lambda tup: ipaddress.IPv4Address(tup[0]))
 
 
-def get_country_from_ip(ipv4_blocks, ipv6_blocks, ip):
+def get_country_from_ip(ipv4_blocks, ip):
     """ Returns two-digit country code. """
 
-    if "." in ip:
-        blocks = ipv4_blocks
-        ip_tuple = (int(ipaddress.IPv4Address(ip)), )
-    else:
-        blocks = ipv6_blocks
-        ip_tuple = (int(ipaddress.IPv6Address(ip)), )
+    blocks = ipv4_blocks
+    ip_tuple = (int(ipaddress.IPv4Address(ip)), )
 
     i = bisect.bisect_right(blocks, ip_tuple)
     if i > len(blocks) - 1:
@@ -208,8 +196,7 @@ if __name__ == "__main__":
     with open(config_file, "r") as f:
         config = toml.load(f)
 
-    ipv4_blocks = pull_IP_blocks_from_dir(config["country_ip_blocks"], 4)
-    ipv6_blocks = pull_IP_blocks_from_dir(config["country_ip_blocks"], 6)
+    ip_blocks = pull_IP_blocks_from_dir(config["country_ip_blocks"])
 
     # unveil sqlite db
 
@@ -221,7 +208,7 @@ if __name__ == "__main__":
             new_entries, cursor_position, turn_over_timestamp = process_new_entries(f, turn_over_timestamp, cursor_position)
         for e in new_entries:
             print(e)
-            print(get_country_from_ip(ipv4_blocks, ipv6_blocks, e[2]))
+            print(get_country_from_ip(ip_blocks, e[2]))
         print("===============")
         time.sleep(10)
         loop_count += 1
