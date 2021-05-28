@@ -3,20 +3,17 @@ a database.
 
 More precisely:
     (Setup)
-    - Create a map of IP blocks to country codes.
-    - Sandbox process with `pledge` and `unveil`.
+    - Create a map of IP blocks to country codes,
+    - Sandbox process with `pledge` and `unveil`,
     (Loop)
     - Read the new lines of the authlog,
-    - Grab the failed password SSH login process_statusrmation,
+    - Grab the failed password SSH login information,
     - Map the attacking IPs to their respective country codes,
-    - Store the relevent attack data in the SQLite database.
+    - Store the relevent attack data in the SQLite database,
     - Wait a bit; goto `Loop`.
 
-Note: The IP blocks list/indexing use IPs stored as integers for lower
-memory overhead. IPs are not stored in to disk as integers, as IPv6's
-128-bit ints are too big for SQLite. """
-
-# todo: Check out "supervisord".
+Note: Logs are sent directly to stdout, as this program is to be daemonized by
+Supervisor/supervisord. """
 
 import bisect
 import datetime
@@ -28,7 +25,6 @@ import signal
 import sqlite3
 import sys
 import time
-from collections import namedtuple
 
 import appdirs
 #import openbsd
@@ -43,7 +39,7 @@ LOG_TURN_OVER_PATTERN = re.compile(
     r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}).*logfile turned over$"
 )
 
-# 1=<Month name> DD HH:MM:SS 2=user, 3=ip.
+# 1=<3-letter month name> DD HH:MM:SS 2=user, 3=ip (v4).
 LOG_FAILED_PASSWORD_PATTERN = re.compile(
     r"(\w{3} {1,2}\d{,2} \d{2}:\d{2}:\d{2}) \w+ \w+\[\d+\]: Failed password for (?:invalid user )?(\w+) from (.*) port \d+ ssh2",
     flags=re.MULTILINE
@@ -62,6 +58,7 @@ def siginfo_handler(signal_number, frame):
 
 
 # IP-block-to-country-code functions ==========================================
+# IPv4 only.
 
 def file_paths_in_dir(dir_path_name):
     file_paths = []
