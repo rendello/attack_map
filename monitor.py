@@ -154,7 +154,7 @@ def process_new_entries(f, old_turn_over_timestamp, old_cursor_position):
         if entry_match is not None:
             non_posix_timestamp, username, ip = entry_match
             timestamp = log_entry_timestamp_to_posix_timestamp(turn_over_timestamp, non_posix_timestamp)
-            nation = get_country_from_ip(ipv4_blocks, ip)
+            nation = get_country_from_ip(ip_blocks, ip)
             new_entries.append(SSHFailedEntry(timestamp, ip, username, nation))
 
     cursor_position = f.tell()
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     process_status = str()
     signal.signal(signal.SIGINFO, siginfo_handler)
 
-    with open(CONFIG_PATH, "r") as f:
+    with open(constants.CONFIG_PATH, "r") as f:
         config = toml.load(f)
 
     ip_blocks = pull_IP_blocks_from_dir(config["country_ip_blocks"])
@@ -210,11 +210,10 @@ if __name__ == "__main__":
     turn_over_timestamp = ""
     loop_count = 0
     while True:
-        with open(AUTHLOG_PATH) as f:
+        with open(constants.AUTHLOG_PATH) as f:
             new_entries, cursor_position, turn_over_timestamp = process_new_entries(f, turn_over_timestamp, cursor_position)
         for e in new_entries:
             print(e)
-            print(get_country_from_ip(ip_blocks, e[2]))
         print("===============")
         time.sleep(10)
         loop_count += 1
