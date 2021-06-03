@@ -4,7 +4,7 @@ a database.
 More precisely:
     (Setup)
     - Create a map of IP blocks to country codes,
-    - Sandbox process with `pledge` and `unveil`,
+    - Sandbox the process with `pledge` and `unveil`,
     (Loop)
     - Read the new lines of the authlog,
     - Grab the failed password SSH login information,
@@ -16,6 +16,7 @@ Note: Logs are sent directly to stdout, as this program is to be daemonized by
 Supervisor/supervisord. """
 
 import bisect
+import collections
 import datetime
 import ipaddress
 import pathlib
@@ -26,24 +27,27 @@ import sqlite3
 import sys
 import time
 
-import appdirs
-#import openbsd
+import openbsd
 import toml
 
-# Constants ===================================================================
+import constants
 
-AUTHLOG_PATH = "/var/log/authlog"
 
-# 1=YYYY-MM-DDTHH:MM:SS.SSS (ISO-8601, "T" is a literal "T")
+# =============================================================================
+
+# 1=YYYY-MM-DDTHH:MM:SS.SSS (ISO-8601 variant, the "T" is literal)
 LOG_TURN_OVER_PATTERN = re.compile(
     r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}).*logfile turned over$"
 )
 
 # 1=<3-letter month name> DD HH:MM:SS 2=user, 3=ip (v4).
 LOG_FAILED_PASSWORD_PATTERN = re.compile(
-    r"(\w{3} {1,2}\d{,2} \d{2}:\d{2}:\d{2}) \w+ \w+\[\d+\]: Failed password for (?:invalid user )?(\w+) from (.*) port \d+ ssh2",
+    (r"(\w{3} {1,2}\d{,2} \d{2}:\d{2}:\d{2}) \w+ \w+\[\d+\]: "
+    +r"Failed password for (?:invalid user )?(\w+) from (.*) port \d+ ssh2"),
     flags=re.MULTILINE
 )
+
+SSHFailedEntry = collections.namedtuple("SSHFailedEntry", ("timestamp", "ip", "username", "nation"))
 
 
 # =============================================================================
@@ -58,7 +62,7 @@ def siginfo_handler(signal_number, frame):
 
 
 # IP-block-to-country-code functions ==========================================
-# IPv4 only.
+# IPv4 only. IPs are stored as integers in RAM to save on space.
 
 def file_paths_in_dir(dir_path_name):
     file_paths = []
@@ -108,7 +112,7 @@ def get_country_from_ip(ipv4_blocks, ip):
 # Logfile monitor functions ===================================================
 
 def log_entry_timestamp_to_posix_timestamp(turn_over_timestamp, timestamp) -> float:
-    """ Change log entry timestamp to POSIX timestamp.
+    """ Change log entry timestamp to floating-point POSIX timestamp.
     
     Entry dates are given in this format: "May 17 18:00:38". We rely on the
     log's turn over date (in another format, ISO 8601) to give us the year. """
@@ -150,7 +154,8 @@ def process_new_entries(f, old_turn_over_timestamp, old_cursor_position):
         if entry_match is not None:
             non_posix_timestamp, username, ip = entry_match
             timestamp = log_entry_timestamp_to_posix_timestamp(turn_over_timestamp, non_posix_timestamp)
-            new_entries.append((timestamp, username, ip))
+            nation = get_country_from_ip(ipv4_blocks, ip)
+            new_entries.append(SSHFailedEntry(timestamp, ip, username, nation))
 
     cursor_position = f.tell()
 
@@ -162,7 +167,7 @@ def process_new_entries(f, old_turn_over_timestamp, old_cursor_position):
 def commit_entries_to_db(entries, db_path):
     """ Open SQLite db, dump entries, close db. """
 
-    con = sqlite3.connect(db_path)
+    con = sqlite3.connect(constants.DB_PATH)
     cur = con.cursor()
 
     cur.execute("SELECT MAX(timestamp) FROM password_violations")
@@ -171,10 +176,15 @@ def commit_entries_to_db(entries, db_path):
     for entry in entries:
         if entry.timestamp > latest_entry_timestamp:
             cur.execute(
-                ("INSERT INTO password_violations "
-                +"(username, ip, nation, timestamp)"
-                +"VALUES (?, ?, ?, ?)")
+                ("INSERT INTO ssh_password_violations "
+                +"(timestamp, ip, username, nation) "
+                +"VALUES (?, ?, ?, ?)"),
+                entry.timestamp,
+                entry.ip,
+                entry.username,
+                entry.nation
             )
+
     con.commit()
     con.close()
 
@@ -189,8 +199,7 @@ if __name__ == "__main__":
     process_status = str()
     signal.signal(signal.SIGINFO, siginfo_handler)
 
-    config_file = pathlib.Path(appdirs.user_config_dir("SSH_Map")).joinpath("config.toml")
-    with open(config_file, "r") as f:
+    with open(CONFIG_PATH, "r") as f:
         config = toml.load(f)
 
     ip_blocks = pull_IP_blocks_from_dir(config["country_ip_blocks"])
