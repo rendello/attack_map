@@ -12,9 +12,9 @@ def create_sqlite_db():
     cur.execute(
         """
         CREATE TABLE ssh_password_violations(
-            timestamp   REAL
-            ip          TEXT
-            username    TEXT
+            timestamp   REAL,
+            ip          TEXT,
+            username    TEXT,
             nation      TEXT
         )
         """

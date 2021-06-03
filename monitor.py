@@ -170,19 +170,21 @@ def commit_entries_to_db(entries, db_path):
     con = sqlite3.connect(constants.DB_PATH)
     cur = con.cursor()
 
-    cur.execute("SELECT MAX(timestamp) FROM password_violations")
-    latest_entry_timestamp = float(cur.fetchone())
+    try:
+        cur.execute("SELECT MAX(timestamp) FROM ssh_password_violations")
+        latest_entry_timestamp = float(cur.fetchone()[0])
+    except TypeError:
+        latest_entry_timestamp = float(0)
 
     for entry in entries:
         if entry.timestamp > latest_entry_timestamp:
             cur.execute(
-                ("INSERT INTO ssh_password_violations "
-                +"(timestamp, ip, username, nation) "
-                +"VALUES (?, ?, ?, ?)"),
-                entry.timestamp,
-                entry.ip,
-                entry.username,
-                entry.nation
+                """
+                INSERT INTO ssh_password_violations
+                (timestamp, ip, username, nation)
+                VALUES (?, ?, ?, ?)
+                """,
+                (entry.timestamp, entry.ip, entry.username, entry.nation)
             )
 
     con.commit()
@@ -215,6 +217,9 @@ if __name__ == "__main__":
         for e in new_entries:
             print(e)
         print("===============")
+
+        commit_entries_to_db(new_entries, constants.DB_PATH)
+
         time.sleep(10)
         loop_count += 1
         process_status = f"Monitoring log file. Loop count: {loop_count}"
