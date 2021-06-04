@@ -206,7 +206,10 @@ if __name__ == "__main__":
 
     ip_blocks = pull_IP_blocks_from_dir(config["country_ip_blocks"])
 
-    # unveil sqlite db
+    openbsd.unveil(constants.AUTHLOG_PATH, "r");
+    openbsd.unveil(constants.DB_DIR_PATH, "rwc");
+    openbsd.pledge("stdio flock proc rpath wpath cpath tmppath fattr");
+           
 
     cursor_position = 0
     turn_over_timestamp = ""

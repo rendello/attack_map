@@ -21,3 +21,5 @@ def create_sqlite_db():
     )
     con.commit()
     con.close()
+
+create_sqlite_db()
