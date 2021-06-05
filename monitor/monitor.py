@@ -209,7 +209,6 @@ if __name__ == "__main__":
     openbsd.unveil(constants.AUTHLOG_PATH, "r");
     openbsd.unveil(constants.DB_DIR_PATH, "rwc");
     openbsd.pledge("stdio flock proc rpath wpath cpath tmppath fattr");
-           
 
     cursor_position = 0
     turn_over_timestamp = ""
