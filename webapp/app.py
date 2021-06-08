@@ -45,22 +45,91 @@ def ssh_attack_summary():
     return flask.jsonify(data_as_dict)
 
 
-@app.route("/api/ssh_attack_data.json/", methods=["GET"])
-@app.route("/api/ssh_attack_data.json/since/<since_str>", methods=["GET"])
-def ssh_attack_new_data(since_str="0"):
-    if since_str.isdigit():
-        since = int(since_str)
+@app.route("/api/ssh_attack_data.json", methods=["GET"])
+def ssh_attack_new_data():
+    since_query = flask.request.args.get("since") or "0"
+    nation_query = flask.request.args.get("nation")
+    max_items_query = flask.request.args.get("max_items") or "100"
+
+    if since_query.isdigit():
+        since = int(since_query)
     else:
         return api_error(
             "`since` value must be a positive integer representing a valid POSIX timestamp."
         )
 
-    data = fetch_from_db(
-        """ SELECT timestamp, username, nation FROM ssh_password_violations
-        WHERE timestamp > (?) ORDER BY timestamp DESC LIMIT 100""",
-        [since]
-    )
+    if max_items_query.isdigit():
+        max_items = min(int(max_items_query), 100)
+    else:
+        return api_error("`max_items` value must be a positive integer.")
+
+    if nation_query is not None:
+        data = fetch_from_db(
+            """
+            SELECT timestamp, username, nation
+            FROM ssh_password_violations
+            WHERE timestamp > (?)
+            AND nation = (?)
+            ORDER BY timestamp DESC
+            LIMIT (?)
+            """,
+            (since, nation_query, max_items)
+        )
+    else:
+        data = fetch_from_db(
+            """
+            SELECT timestamp, username, nation
+            FROM ssh_password_violations
+            WHERE timestamp > (?)
+            ORDER BY timestamp DESC
+            LIMIT (?)
+            """,
+            (since, max_items)
+        )
 
     return flask.jsonify(data)
 
 
+@app.route("/api/ssh_attack_top_usernames.json", methods=["GET"])
+def ssh_attack_top_usernames():
+    since_query = flask.request.args.get("since") or "0"
+    nation_query = flask.request.args.get("nation")
+    max_items_query = flask.request.args.get("max_items") or "100"
+
+    if since_query.isdigit():
+        since = int(since_query)
+    else:
+        return api_error(
+            "`since` value must be a positive integer representing a valid POSIX timestamp."
+        )
+
+    if max_items_query.isdigit():
+        max_items = min(int(max_items_query), 100)
+    else:
+        return api_error("`max_items` value must be a positive integer.")
+
+    if nation_query is not None:
+        data = fetch_from_db(
+            """
+            SELECT username, COUNT(username)
+            FROM ssh_password_violations
+            WHERE nation = (?)
+            GROUP BY username
+            ORDER BY COUNT(username) DESC
+            LIMIT (?)
+            """,
+            (nation_query, max_items)
+        )
+    else:
+        data = fetch_from_db(
+            """
+            SELECT username, COUNT(username)
+            FROM ssh_password_violations
+            GROUP BY username
+            ORDER BY COUNT(username) DESC
+            LIMIT (?)
+            """,
+            (max_items,)
+        )
+
+    return flask.jsonify(data)
