@@ -87,7 +87,16 @@ def ssh_attack_new_data():
             (since, max_items)
         )
 
-    return flask.jsonify(data)
+    data_as_dicts = []
+    for datum in data:
+        datum_as_dict = {
+            "timestamp": datum[0],
+            "username": datum[1],
+            "nation": datum[2]
+        }
+        data_as_dicts.append(datum_as_dict)
+
+    return flask.jsonify(data_as_dicts)
 
 
 @app.route("/api/ssh_attack_top_usernames.json", methods=["GET"])
