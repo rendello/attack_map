@@ -1,0 +1,178 @@
+@font-face {
+  font-family: Futura;
+  src: url(font/C_and_G_Sans.otf);
+}
+
+@font-face {
+  font-family: Petita;
+  src: url(font/PetitaMedium.ttf);
+}
+
+@font-face {
+  font-family: Manifold;
+  src: url(font/manifold.ttf);
+}
+
+:root {
+    --bg_color: #093669;
+    --selected_color: #fe6;
+
+    /* The country code is displayed on the map, so we want the y-axis numbers
+     * to stop before they interesect with the box for aesthetics. See grid
+     * stuff in #map_box */
+    --country_code_display_height: 100px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    font-size: 1em;
+}
+
+html {
+    height: 100%;
+    font-family: sans;
+}
+
+body {
+    background: var(--bg_color);
+    width: 98%;
+    margin: 0 auto;
+    min-height: 100%;
+    display: grid;
+    column-gap: 10px;
+    row-gap: 1rem;
+    grid-template-columns: 1fr 900px 1fr;
+    grid-template-rows: min-content min-content 1fr min-content;
+    grid-template-areas:
+        "header   header  header"
+        "info_box map_box recent_box"
+        ".        .       ."
+        "footer   footer  footer";
+}
+
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: Futura;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Analagous to the keyframes in `map.svg`. */
+@keyframes quick_blink {
+    0% {
+        visibility: hidden;
+    }
+    50% {
+        visibility: visible;
+    }
+}
+
+.quick_blink {
+    animation: quick_blink 0.6s step-end 2;
+}
+
+
+/* ------------------------------------------------------------------------- */
+#header {
+    grid-area: header;
+    text-align: center;
+    margin-top: 1.4rem;
+}
+
+#header h1 {
+    color: #eee;
+    font-size: 3.5rem;
+    text-shadow: 0 0 15px rgba(255,255,255,.2);
+}
+
+/* ------------------------------------------------------------------------- */
+#map_box {
+    grid-area: map_box;
+    font-family: manifold, monospace;
+    color: #ccc;
+    line-height: .9em;
+    text-shadow: 0 0 7px rgba(255,255,255,.2);
+
+    display: grid;
+    column-gap: .3em;
+    row-gap: .3em;
+    grid-template-columns: min-content 1fr;
+    grid-template-rows: min-content 1fr var(--country_code_display_height);
+    grid-template-areas:
+        ".                horizontal_numbers"
+        "vertical_numbers map"
+        ".                map";
+}
+
+#horizontal_numbers {
+    grid-area: horizontal_numbers;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+#vertical_numbers {
+    grid-area: vertical_numbers;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+#map_box #map {
+    grid-area: map;
+    background: url(lines.png);
+    position: relative;
+}
+
+#country_code_display {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    background: var(--bg_color);
+    width: 10rem;
+    height: var(--country_code_display_height);
+    display: flex;
+    align-items: center;
+}
+
+#country_code_display div {
+    font-family: Futura;
+    color: var(--bg_color);
+    text-align: center;
+    background: var(--selected_color);
+    width: 75%;
+    height: 75%;
+    margin: 0 auto;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bolder;
+    font-size: 3rem;
+    box-shadow: 0 0 15px rgba(238,238,238,.2);
+}
+
+/* ------------------------------------------------------------------------- */
+
+#info_box,
+#recent_box {
+    /* Roughly align to top of map (instead of coordinate numbers) */
+    margin-top: 1.1rem;
+}
+
+#info_box h1,
+#recent_box h1 {
+    font-family: Petita;
+    text-align: center;
+    color: #eee;
+    letter-spacing: 0.2em;
+    text-shadow: 0 0 15px rgba(255,255,255,.2);
+    margin-bottom: 0.8em;
+}
+
+p {
+    font-family: manifold;
+    color: #ccc;
+    line-height: .9em;
+    text-shadow: 0 0 7px rgba(255,255,255,.2);
+}

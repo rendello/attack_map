@@ -26,11 +26,6 @@ app = flask.Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
 
 
-@app.route('/')
-def hello_world():
-    return 'Hello, World!'
-
-
 @app.route("/api/ssh_attack_summary.json", methods=["GET"])
 def ssh_attack_summary():
 
@@ -142,3 +137,8 @@ def ssh_attack_top_usernames():
         )
 
     return flask.jsonify(data)
+
+
+@app.route('/', defaults={'path': ''})
+def catch_all(path):
+    return app.send_static_file("index.html")
