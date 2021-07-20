@@ -120,7 +120,7 @@ h1, h2, h3, h4, h5, h6 {
 
 #map_box #map {
     grid-area: map;
-    background: url(lines.png);
+    background: url(img/lines.png);
     position: relative;
 }
 
