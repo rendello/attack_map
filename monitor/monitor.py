@@ -20,11 +20,9 @@ import collections
 import datetime
 import ipaddress
 import pathlib
-import platform
 import re
 import signal
 import sqlite3
-import sys
 import time
 
 import openbsd
