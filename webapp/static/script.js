@@ -1,46 +1,4 @@
 
-// `prev_lines` is an array of strings, ostensibly this function's previous return.
-// `new_entries` is an object with the raw entry data.
-// Returns an array of entry strings no longer than `max_lines`.
-function recent_attack_str_update(prev_lines, new_entries, max_lines) {
-    lines = []
-    for (const entry of new_entries) {
-        if (lines.length < max_lines) {
-            lines.push(`<p>${entry.nation} -- ${entry.username}</p>`)
-        } else {
-            break
-        }
-    }
-
-    for (const line of prev_lines) {
-        if (lines.length < max_lines) {
-            lines.push(line)
-        } else {
-            break
-        }
-    }
-
-    return lines
-}
-
-function shuffle(array) {
-  var currentIndex = array.length,  randomIndex;
-
-  // While there remain elements to shuffle...
-  while (0 !== currentIndex) {
-
-    // Pick a remaining element...
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-
-    // And swap it with the current element.
-    [array[currentIndex], array[randomIndex]] = [
-      array[randomIndex], array[currentIndex]];
-  }
-
-  return array;
-}
-
 
 const country_codes = {
   "AF": "Afghanistan",
@@ -290,17 +248,6 @@ const country_codes = {
   "ZM": "Zambia",
   "ZW": "Zimbabwe"
 }
-
-var strs = [
-    "<p>CN -- root</p>",
-    "<p>CN -- armaserver</p>",
-    "<p>US -- root</p>",
-    "<p>CA -- admin</p>",
-    "<p>CA -- admin</p>",
-    "<p>CN -- qinshang</p>",
-    "<p>CN -- dot</p>",
-    "<p>CN -- shoomba</p>",
-]
 
 var entries = [
   {
@@ -556,22 +503,89 @@ var entries = [
 ]
 
 shuffle(entries)
-var s = recent_attack_str_update(strs, entries, 28)
-for (let step = 0; step < 5; step++) {
-    console.log(s)
-    s = recent_attack_str_update(s, entries, 28)
-}
-
+//var s = recent_attack_str_update(strs, entries, 28)
+//for (let step = 0; step < 5; step++) {
+//    console.log(s)
+//
+//    s = recent_attack_str_update(s, entries, 28)
+//}
 
 document.addEventListener(
     'DOMContentLoaded',
     function() {
-        document.getElementById("recent_attacks").innerHTML = s.join("");
+        //document.getElementById("recent_attacks").innerHTML = s.join("");
+
+        update_recent_attacks_section(entries, 28);
     },
     false
 );
 
 console.log(Object.entries(country_codes))
+
+// ============================================================================
+
+// `prev_lines` is an array of strings, ostensibly this function's previous return.
+// `new_entries` is an object with the raw entry data.
+// Return an array of entry strings no longer than `max_lines`.
+function recent_attack_str_update(prev_lines, new_entries, max_lines) {
+    lines = []
+    for (const entry of new_entries) {
+        if (lines.length < max_lines) {
+            lines.push(`<p>${entry.nation} -- ${entry.username}</p>`)
+        } else break
+    }
+
+    for (const line of prev_lines) {
+        if (lines.length < max_lines) {
+            lines.push(line)
+        } else break
+    }
+    return lines.reverse()
+}
+
+function update_recent_attacks_section(new_entries, max_lines) {
+    line_count = document.getElementById("recent_attacks").innerHTML.split(/\r\n|\r|\n/).length;
+
+    var offset = 0;
+    for (const [i, entry] of new_entries.entries()) {
+        timeout = i * 100;
+        setTimeout(
+            function() {
+                document.getElementById("recent_attacks").innerHTML += `<p>${entry.nation} -- ${entry.username}</p>`;
+            },
+            timeout
+        );
+        if ((line_count + i - offset) > max_lines) {
+            line_count = 0;
+            offset += max_lines;
+            setTimeout(
+                function() {
+                    document.getElementById("recent_attacks").innerHTML = "";
+                },
+                timeout
+            );
+        }
+    }
+}
+
+function shuffle(array) {
+  var currentIndex = array.length,  randomIndex;
+
+  // While there remain elements to shuffle...
+  while (0 !== currentIndex) {
+
+    // Pick a remaining element...
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+
+  return array;
+}
+
 
 function blink_country(country) {
     country.classList.add("blink");
@@ -580,6 +594,8 @@ function blink_country(country) {
         6000
     );
 }
+
+// ============================================================================
 
 window.addEventListener("load",
     function() {
@@ -594,6 +610,8 @@ window.addEventListener("load",
         svgObject.addEventListener(
             "mousedown", function(event)
             {
+                if (event.which != 1) return;
+
                 // Walk up to the first ID that's a two-letter country code.
                 var e = event.target
                 while (e != null) {
@@ -616,6 +634,10 @@ window.addEventListener("load",
                     // Blink country (SVG object) and country code display (HTML div).
                     country.classList.add("selected")
                     document.getElementById("country_code_display").firstChild.classList.add("quick_blink")
+
+                    fetch('/api/ssh_attack_data.json?nation=' + country_code.toLowerCase())
+                    .then(response => response.json())
+                    .then(data => console.log(data));
 
                     previously_selected_country = country;
                 }
