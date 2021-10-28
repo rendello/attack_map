@@ -158,14 +158,20 @@ def ssh_attack_nation_report():
                 SELECT COUNT(*)
                 FROM ssh_password_violations
                 WHERE nation = (?)
-                AND date(timestamp, 'unixepoch') between date('now', '-1 month') and date('now');
+                AND date(timestamp, 'unixepoch') between date('now', '-1 month') and date('now')
+            UNION ALL
+                SELECT COUNT(*)
+                FROM ssh_password_violations
+                WHERE nation = (?)
+                AND date(timestamp, 'unixepoch') between date('now', '-1 day') and date('now');
             """,
-            [nation_query, nation_query, nation_query]
+            (nation_query, nation_query, nation_query, nation_query)
         )
         data_as_dict = {
             "all": data[0],
             "week": data[1],
-            "month": data[2]
+            "month": data[2],
+            "today": data[3]
         }
         return flask.jsonify(data_as_dict)
     else:

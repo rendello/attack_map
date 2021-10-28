@@ -161,6 +161,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 #info_box h1,
+#info_box h2,
 #recent_box h1 {
     font-family: Petita;
     text-align: center;
@@ -170,9 +171,16 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 0.8em;
 }
 
+#info_box h2 {
+    margin-top: 1em;
+    font-size: .7rem;
+    letter-spacing: .5em;
+}
+
 p {
     font-family: manifold;
     color: #ccc;
     line-height: .9em;
     text-shadow: 0 0 7px rgba(255,255,255,.2);
 }
+

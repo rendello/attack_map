@@ -569,10 +569,37 @@ function update_recent_attacks_section(new_entries, max_lines) {
     }
 }
 
+async function slow_update(entries, element_id, clear) {
+    if (clear) {
+        document.getElementById(element_id).innerHTML = "";
+    }
+    for (const [i, entry] of entries.entries()) {
+        timeout = (i + 1) * 100;
+        setTimeout(
+            function() {
+                document.getElementById(element_id).innerHTML += entry;
+            },
+            timeout
+        );
+    }
+}
+
 async function nation_report_update(country_code) {
-    result = await fetch("/api/ssh_attack_summary.json")
+    results = await fetch("/api/ssh_attack_nation_report.json?nation=" + country_code)
     .then(response => response.json())
-    country_all_attacks = (result[country_code])
+
+    nation_report = [
+        "<h1>" + country_codes[country_code.toUpperCase()].toUpperCase() + "</h1>",
+        "<h2>ATTACKS</h2>",
+        "<p>Today ...... " + results["today"] + "</p>",
+        "<p>This week .. " + results["week"] + "</p>",
+        "<p>this month . " + results["month"] + "</p>",
+        "<p>Total ...... " + results["all"] + "</p>",
+        "<h2>USER-NAMES</h2>"
+    ]
+    
+    slow_update(nation_report, "info_box", true);
+
 }
 
 function shuffle(array) {
