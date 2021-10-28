@@ -139,6 +139,40 @@ def ssh_attack_top_usernames():
     return flask.jsonify(data)
 
 
+@app.route("/api/ssh_attack_nation_report.json", methods=["GET"])
+def ssh_attack_nation_report():
+    nation_query = flask.request.args.get("nation")
+
+    if nation_query is not None:
+        data = fetch_from_db(
+            """
+                SELECT COUNT(*)
+                FROM ssh_password_violations
+                WHERE nation = (?)
+            UNION ALL
+                SELECT COUNT(*)
+                FROM ssh_password_violations
+                WHERE nation = (?)
+                AND date(timestamp, 'unixepoch') between date('now', '-1 week') and date('now')
+            UNION ALL
+                SELECT COUNT(*)
+                FROM ssh_password_violations
+                WHERE nation = (?)
+                AND date(timestamp, 'unixepoch') between date('now', '-1 month') and date('now');
+            """,
+            [nation_query, nation_query, nation_query]
+        )
+        data_as_dict = {
+            "all": data[0],
+            "week": data[1],
+            "month": data[2]
+        }
+        return flask.jsonify(data_as_dict)
+    else:
+        return api_error("Incorrect usage: nation code required.")
+
+
+
 @app.route('/', defaults={'path': ''})
 def catch_all(path):
     return app.send_static_file("index.html")

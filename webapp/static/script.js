@@ -1,4 +1,5 @@
 
+// Javascript is insane.
 
 const country_codes = {
   "AF": "Afghanistan",
@@ -568,6 +569,12 @@ function update_recent_attacks_section(new_entries, max_lines) {
     }
 }
 
+async function nation_report_update(country_code) {
+    result = await fetch("/api/ssh_attack_summary.json")
+    .then(response => response.json())
+    country_all_attacks = (result[country_code])
+}
+
 function shuffle(array) {
   var currentIndex = array.length,  randomIndex;
 
@@ -635,10 +642,11 @@ window.addEventListener("load",
                     country.classList.add("selected")
                     document.getElementById("country_code_display").firstChild.classList.add("quick_blink")
 
-                    fetch('/api/ssh_attack_data.json?nation=' + country_code.toLowerCase())
-                    .then(response => response.json())
-                    .then(data => console.log(data));
+                    ///fetch('/api/ssh_attack_data.json?nation=' + country_code.toLowerCase())
+                    ///.then(response => response.json())
+                    ///.then(data => console.log(data));
 
+                    nation_report_update(country_code.toLowerCase())
                     previously_selected_country = country;
                 }
             },
