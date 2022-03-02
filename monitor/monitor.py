@@ -9,7 +9,7 @@ More precisely:
     - Read the new lines of the authlog,
     - Grab the failed password SSH login information,
     - Map the attacking IPs to their respective country codes,
-    - Store the relevent attack data in the SQLite database,
+    - Store the relevant attack data in the SQLite database,
     - Wait a bit; goto `Loop`.
 
 Note: Logs are sent directly to stdout, as this program is to be daemonized by
